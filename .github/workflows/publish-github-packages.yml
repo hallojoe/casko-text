@@ -1,0 +1,132 @@
+name: Publish Casko.Text to GitHub Packages and NuGet
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+env:
+  DOTNET_VERSION: 10.0.x
+  GITHUB_PACKAGE_SOURCE: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+  NUGET_PACKAGE_SOURCE: https://api.nuget.org/v3/index.json
+  PACKAGE_PROJECT: src/Casko.Text/Casko.Text.csproj
+  PACKAGE_ID: Casko.Text
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Derive and validate package version
+        id: versioning
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ github.event.release.tag_name }}"
+          target_branch="${{ github.event.release.target_commitish }}"
+
+          echo "Release tag: $tag"
+          echo "Target branch: $target_branch"
+
+          if [[ ! "$tag" =~ ^v.+ ]]; then
+            echo "::error::Release tag must start with 'v'. Got: $tag"
+            exit 1
+          fi
+
+          version="${tag#v}"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "::error::Derived version is not valid: $version"
+            exit 1
+          fi
+
+          if [[ "$version" == *-* ]]; then
+            is_prerelease=true
+          else
+            is_prerelease=false
+          fi
+
+          if [[ "$is_prerelease" == "false" && "$target_branch" != "main" ]]; then
+            echo "::error::Stable releases are only allowed from 'main'. Tag '$tag' targets '$target_branch'."
+            exit 1
+          fi
+
+          if [[ "$is_prerelease" == "true" && "$target_branch" == "main" ]]; then
+            echo "::error::Prerelease versions are not allowed from 'main'. Tag '$tag' targets '$target_branch'."
+            exit 1
+          fi
+
+          echo "package_version=$version" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: dotnet restore src/Casko.Text.slnx
+
+      - name: Pack Casko.Text
+        run: |
+          dotnet pack "${{ env.PACKAGE_PROJECT }}" \
+            --configuration Release \
+            --no-restore \
+            -p:Version=${{ steps.versioning.outputs.package_version }} \
+            -o ./artifacts
+
+      - name: Verify package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          package="./artifacts/${{ env.PACKAGE_ID }}.${{ steps.versioning.outputs.package_version }}.nupkg"
+
+          if [[ ! -f "$package" ]]; then
+            echo "::error::Expected package was not produced: $package"
+            exit 1
+          fi
+
+      - name: Push package to GitHub Packages
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          dotnet nuget push ./artifacts/*.nupkg \
+            --source "${{ env.GITHUB_PACKAGE_SOURCE }}" \
+            --api-key "$GITHUB_TOKEN" \
+            --skip-duplicate
+
+      - name: Login to NuGet.org
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push package to NuGet.org
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          dotnet nuget push ./artifacts/*.nupkg \
+            --source "${{ env.NUGET_PACKAGE_SOURCE }}" \
+            --api-key "$NUGET_API_KEY" \
+            --skip-duplicate
+
+      - name: Summarize
+        run: |
+          echo "Published version: ${{ steps.versioning.outputs.package_version }}"
+          echo "Prerelease: ${{ steps.versioning.outputs.is_prerelease }}"
+          echo "Package: ${{ env.PACKAGE_ID }}"

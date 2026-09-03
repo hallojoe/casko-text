@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Casko.Text/Casko.Text.csproj" />
+  <Project Path="Casko.Text.Rendering.Markdown/Casko.Text.Rendering.Markdown.csproj" />
+  <Project Path="Casko.Text.Rendering.Razor/Casko.Text.Rendering.Razor.csproj" />
+  <Project Path="Casko.Text.Rendering/Casko.Text.Rendering.csproj" />
+</Solution>

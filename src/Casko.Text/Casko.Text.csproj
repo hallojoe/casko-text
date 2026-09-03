@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>Casko.Text</PackageId>
+    <Description>Text manipulation utilities for .NET.</Description>
+    <PackageTags>text;string;strings;extensions;slug;slugify;hash;base32;base62;wildcard;markdown</PackageTags>
+    <Authors>Casko</Authors>
+    <RepositoryUrl>https://github.com/hallojoe/casko-text</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
